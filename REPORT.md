@@ -1,0 +1,198 @@
+# Documentation–Implementation Mismatches and LLM / AI Risk
+
+**Repository analyzed:** `openapi-to-postman`  
+
+---
+
+## Executive summary
+
+- **21 functions** were reviewed across core library code, validation utilities, schema utilities, and bundled vendor assets.
+- **18 findings are fully verified, high-confidence contradictions** where comments or inline documentation clearly misstate runtime behavior.
+- **1 additional finding identifies an underspecified API contract**, where documentation is technically correct but hides important semantics.
+- The dominant issue is **LLM and AI risk**:
+  - callers (human or AI) infer return values, sync/async behavior, or nullability that the code does not guarantee.
+- These issues do not indicate broken functionality, but they **increase the likelihood of plausible-but-wrong code** in AI-assisted development workflows.
+
+---
+
+## How LLM and AI risk arises
+
+LLM and AI risk emerges when:
+- documentation asserts a contract the runtime does not implement, or
+- documentation omits critical constraints (e.g. `null`, `undefined`, async behavior, mutation),
+- forcing callers to *invent* behavior that appears reasonable.
+
+In AI-assisted coding:
+- comments and JSDoc are weighted more heavily than implementation,
+- contradictions force models to guess intent,
+- guesses optimize for plausibility, not correctness.
+
+---
+
+## Fully verified contradictions (high LLM / AI risk)
+
+These findings are clear documentation–implementation mismatches.  
+The documented behavior is **false** relative to runtime behavior.
+
+### 1. `stringIsAValidUrl`
+- **Documented:** Returns object.
+- **Runtime:** Returns boolean.
+- **Risk:** Property access on primitive values; incorrect conditional logic.
+
+---
+
+### 2. `getVersionByStringInput`
+- **Documented:** Returns string.
+- **Runtime:** Returns `string | false`.
+- **Risk:** Missing falsy checks and incorrect control flow.
+
+---
+
+### 3. `getReferences`
+- **Documented:** Returns object.
+- **Runtime:** `async`, returns `Promise`.
+- **Risk:** Missing `await`, race conditions, unresolved promises.
+
+---
+
+### 4. `getParamSerialisationInfo`
+- **Documented:** Returns object.
+- **Runtime:** Returns `null` for invalid input.
+- **Risk:** Missing null guards and runtime crashes.
+
+---
+
+### 5. `convertParamsWithStyle`
+- **Documented:** Returns array.
+- **Runtime:** Returns `null` for invalid parameters.
+- **Risk:** Iteration over null values.
+
+---
+
+### 6. `getAllTransactions` (multiple test utilities)
+- **Documented:** Returns `null`.
+- **Runtime:** Returns `void` (`undefined`).
+- **Risk:** Null checks that never trigger; masked failures.
+
+---
+
+### 7. `getAllTransactionsInjectingId`
+- **Documented:** Returns `null`.
+- **Runtime:** Returns `void`.
+- **Risk:** Incorrect assumptions about sentinel return values.
+
+---
+
+### 8. `addDefaultMetaSchema`
+- **Documented:** Returns `Ajv`.
+- **Runtime:** Returns `void`; mutates argument.
+- **Risk:** Broken chaining assumptions.
+
+---
+
+### 9. `processRelatedFiles`
+- **Documented:** Returns object.
+- **Runtime:** `async`, returns `Promise`.
+- **Risk:** Fire-and-forget usage where sequencing matters.
+
+---
+
+### 10. `mapDetectRootFilesInputToGetRootFilesInput`
+- **Documented:** Returns array of `MISSING_ENDPOINT` objects.
+- **Runtime:** Returns `{ data: adaptedData }`.
+- **Risk:** Incorrect iteration and destructuring.
+
+---
+
+### 11. `mapDetectRootFilesInputToFolderInput`
+- **Documented:** Returns array of `MISSING_ENDPOINT` objects.
+- **Runtime:** Mutates and returns the input object.
+- **Risk:** Unexpected mutation and state leakage.
+
+---
+
+### 12. `mapProcessRelatedFiles`
+- **Documented:** Returns object.
+- **Runtime:** `async`, returns `Promise`.
+- **Risk:** Assumed synchronous availability.
+
+---
+
+### 13. `inventory$Ref`
+- **Documented:** Returns object.
+- **Runtime:** Returns `void`.
+- **Risk:** Consumption of nonexistent values.
+
+---
+
+### 14. `formatArgs`
+- **Documented:** Returns array.
+- **Runtime:** Returns `void`; mutates arguments in place.
+- **Risk:** Incorrect functional-style usage.
+
+---
+
+### 15. `parse`
+- **Documented:** Returns number.
+- **Runtime:** Can return `undefined`.
+- **Risk:** Numeric operations on undefined values.
+
+---
+
+### 16. `plural`
+- **Documented:** Returns string.
+- **Runtime:** Can return `undefined`.
+- **Risk:** Unsafe string operations.
+
+---
+
+### 17. `debug`
+- **Documented:** Returns a function.
+- **Runtime:** Returned function returns `void` (undocumented).
+- **Risk:** Assumed return semantics and incorrect chaining.
+
+---
+
+### 18. `buildValidatorObject`
+- **Documented:** Returns validation errors.
+- **Runtime:** Returns configured Ajv validator instance.
+- **Risk:** Callers expect results instead of a callable validator.
+
+---
+
+## Underspecified API contracts (moderate LLM / AI risk)
+
+These findings are not strictly false, but **obscure important behavioral constraints**.
+
+### 19. `typecast`
+- **Documented:** Returns `any`.
+- **Runtime:** Returns specific primitive values (including boolean).
+- **Risk:** Loss of semantic signal increases misuse and hallucination.
+
+---
+
+## Why this matters
+
+- **Incorrect assumptions scale poorly** in AI-assisted development.
+- **LLMs amplify documentation ambiguity**:
+  - comments outweigh code,
+  - ambiguity increases hallucination,
+  - hallucination increases correction cycles.
+- **Clear contracts reduce risk and cost**:
+  - fewer runtime errors,
+  - fewer retries,
+  - lower cognitive and token overhead.
+
+Improving documentation accuracy directly reduces **LLM and AI risk**.
+
+---
+
+## Research attribution
+
+This analysis is consistent with prior work on hallucination and ambiguity in AI-assisted code generation:
+
+- Ji et al., 2023 — *A Survey of Hallucination in Large Language Models*  
+  https://arxiv.org/abs/2311.05232
+
+- Liu et al., 2024 — *CodeMirage: Hallucinations in Code Generation*  
+  https://arxiv.org/abs/2408.08333
